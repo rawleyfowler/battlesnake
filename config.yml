@@ -1,0 +1,6 @@
+logger: log4perl
+log: core
+engines:
+  logger:
+    log4perl:
+      config_file: log4perl.conf
