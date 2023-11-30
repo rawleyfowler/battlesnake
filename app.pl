@@ -138,4 +138,6 @@ post '/move' => sub {
     return _determine_move($move);
 };
 
+return to_app if $ENV{SNAKE_PRODUCTION};
+
 dance;
