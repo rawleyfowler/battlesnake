@@ -28,12 +28,10 @@ sub _viable_movements {
 
     my @movements;
 
-    my %hx;
-    my %hy;
+    my %h;
 
     for (@$hazards) {
-        $hx{$_->{x}} = 1;
-        $hy{$_->{y}} = 1;
+        $h{$_->{x} . ',' . $_->{y}} = 1;
     }
 
     my $dw = $width - 1;
@@ -50,31 +48,34 @@ sub _viable_movements {
     my $safe = sub {
         my ($nx, $ny) = @_;
 
-        return not(exists $hx{$nx} && exists $hy{$ny}) &&
+        return not(exists $h{$nx . ',' . $ny}) &&
             ($nx >= 0 && $nx < $dw) &&
             ($ny >= 0 && $ny < $dh);
     };
 
     say 'HAZARDS';
-    p %hx;
-    p %hy;
+    p %h;
 
     if ( ( my $dx = $x + 1 ) < $dw ) {
+        say 'DX: ', $dx, ' Y: ', $y;
         push @movements, $make_direction->( 'right', $dx, $y )
             if $safe->($dx, $y);
     }
 
     if ( ( my $dx = $x - 1 ) >= 0 ) {
+        say 'DX: ', $dx, ' Y: ' . $y;
         push @movements, $make_direction->( 'left', $dx, $y )
             if $safe->($dx, $y);
     }
 
     if ( ( my $dy = $y + 1 ) < $dh ) {
+        say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'up', $x, $dy )
             if $safe->($x, $dy);
     }
 
     if ( ( my $dy = $y - 1 ) >= 0 ) {
+        say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'down', $x, $dy )
             if $safe->($x, $dy);
     }
@@ -104,6 +105,7 @@ sub _determine_move {
 
     p $snake;
 
+    shift $snake->{body}->@*;
     push @$hazards, $snake->{body}->@*;
 
     unless ($game->{snakes}) {
