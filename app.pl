@@ -160,6 +160,10 @@ post '/move' => sub {
     return $move;
 };
 
+open( my $fh, '>', '/tmp/battlesnake.pid' ) or die $!;
+print $fh $$;
+close($fh);
+
 return to_app if $ENV{SNAKE_PRODUCTION};
 
 dance;
