@@ -12,12 +12,22 @@ sub _optimal_movement {
     my ( $viable_movements, $food, $hazards ) = @_;
 
     foreach my $m (@$viable_movements) {
-        my @dt =
-          map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) } @$food;
 
-        # TODO: Add based on hazards.
+        # Set a base delta factor
+        # (how good this direction is based on proximity to food)
+        # Lower is better.
+        $m->{dt} =
+          min( map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) }
+              @$food );
 
-        $m->{dt} = min @dt;
+        say 'HAZARDS: ';
+        p $hazards;
+
+        # Increase delta factor of route based on proximity to
+        # existing hazards.
+        foreach my $h (@$hazards) {
+            $m->{dt} += abs( $h->{x} - $m->{x} ) + abs( $h->{y} - $m->{y} );
+        }
     }
 
     return reduce { $a->{dt} <= $b->{dt} ? $a : $b } @$viable_movements;
@@ -27,12 +37,7 @@ sub _viable_movements {
     my ( $head, $hazards, $width, $height ) = @_;
 
     my @movements;
-
-    my %h;
-
-    for (@$hazards) {
-        $h{ $_->{x} . ',' . $_->{y} } = 1;
-    }
+    my %h = %$hazards;
 
     my $dw = $width - 1;
     my $dh = $height - 1;
@@ -54,10 +59,7 @@ sub _viable_movements {
           && ( $ny >= 0 && $ny < $dh );
     };
 
-    say 'HAZARDS';
-    p %h;
-
-    if ( ( my $dx = $x + 1 ) < $dw ) {
+    if ( ( my $dx = $x + 1 ) <= $dw ) {
         say 'DX: ', $dx, ' Y: ', $y;
         push @movements, $make_direction->( 'right', $dx, $y )
           if $safe->( $dx, $y );
@@ -69,7 +71,7 @@ sub _viable_movements {
           if $safe->( $dx, $y );
     }
 
-    if ( ( my $dy = $y + 1 ) < $dh ) {
+    if ( ( my $dy = $y + 1 ) <= $dh ) {
         say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'up', $x, $dy )
           if $safe->( $x, $dy );
@@ -127,8 +129,13 @@ sub _determine_move {
         }
     }
 
-    my $viable_movements =
-      _viable_movements( $head, $hazards, $width, $height );
+    my %h;
+
+    for (@$hazards) {
+        $h{ $_->{x} . ',' . $_->{y} } = 1;
+    }
+
+    my $viable_movements = _viable_movements( $head, \%h, $width, $height );
     my $optimal_movement =
       _optimal_movement( $viable_movements, $food, $hazards );
 
@@ -156,6 +163,7 @@ post '/start' => sub {
 post '/move' => sub {
     my $move = from_json( request->body );
     $move = _determine_move($move);
+    say 'PICKED MOVE:';
     p $move;
     return $move;
 };
