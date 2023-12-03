@@ -2,7 +2,7 @@ use 5.036;
 
 use Dancer2;
 use DDP;
-use List::Util qw(reduce min);
+use List::Util qw(reduce min sum);
 
 use constant SNAKE_NAME => 'perlsnake';
 
@@ -13,20 +13,24 @@ sub _optimal_movement {
 
     foreach my $m (@$viable_movements) {
 
-        # Set a base delta factor
-        # (how good this direction is based on proximity to food)
-        # Lower is better.
-        $m->{dt} =
-          min( map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) }
-              @$food );
+        # Set a base cost factor (dt), lower is better.
+        $m->{dt} //= 0;
+
+        # Add the distance from fruit
+        $m->{dt}
+            -= min( map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) }
+                @$food );
 
         say 'HAZARDS: ';
         p $hazards;
 
-        # Increase delta factor of route based on proximity to
-        # existing hazards.
-        foreach my $h (@$hazards) {
-            $m->{dt} += abs( $h->{x} - $m->{x} ) + abs( $h->{y} - $m->{y} );
+        # Increase cost of route based on proximity to
+        # existing hazards
+        for (@$hazards) {
+            if (abs($_->{x} - $m->{x}) == 1 &&
+                abs($_->{y} - $m->{y}) == 1) {
+                ++$m->{dt};
+            }
         }
     }
 
@@ -52,35 +56,34 @@ sub _viable_movements {
 
     my $safe = sub {
         my ( $nx, $ny ) = @_;
-
         return
-             not( exists $h{ $nx . ',' . $ny } )
-          && ( $nx >= 0 && $nx < $dw )
-          && ( $ny >= 0 && $ny < $dh );
+               not( exists $h{ $nx . ',' . $ny } )
+            && ( $nx >= 0 && $nx < $dw )
+            && ( $ny >= 0 && $ny < $dh );
     };
 
     if ( ( my $dx = $x + 1 ) <= $dw ) {
         say 'DX: ', $dx, ' Y: ', $y;
         push @movements, $make_direction->( 'right', $dx, $y )
-          if $safe->( $dx, $y );
+            if $safe->( $dx, $y );
     }
 
     if ( ( my $dx = $x - 1 ) >= 0 ) {
         say 'DX: ', $dx, ' Y: ' . $y;
         push @movements, $make_direction->( 'left', $dx, $y )
-          if $safe->( $dx, $y );
+            if $safe->( $dx, $y );
     }
 
     if ( ( my $dy = $y + 1 ) <= $dh ) {
         say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'up', $x, $dy )
-          if $safe->( $x, $dy );
+            if $safe->( $x, $dy );
     }
 
     if ( ( my $dy = $y - 1 ) >= 0 ) {
         say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'down', $x, $dy )
-          if $safe->( $x, $dy );
+            if $safe->( $x, $dy );
     }
 
     say 'MOVEMENTS';
@@ -116,14 +119,13 @@ sub _determine_move {
             next if $_->{id} eq $snake->{id};
 
             # Hazards includes bigger snake bodies
-            if ( $_->{health} > $snake->{health} ) {
+            if ( len( $_->{body} ) > ( len( $snake->{body} ) + 1 ) ) {
                 push @$hazards, $_->{body}->@*;
             }
             else {
-                my @body =
-                  grep {
+                my @body = grep {
                     $_->{x} != $_->{head}->{x} && $_->{y} != $_->{head}->{y}
-                  } $_->{body}->@*;
+                } $_->{body}->@*;
                 push @$hazards, @body;
             }
         }
@@ -136,12 +138,12 @@ sub _determine_move {
     }
 
     my $viable_movements = _viable_movements( $head, \%h, $width, $height );
-    my $optimal_movement =
-      _optimal_movement( $viable_movements, $food, $hazards );
+    my $optimal_movement
+        = _optimal_movement( $viable_movements, $food, $hazards );
 
     return +{
         shout => 'PERL MAY BE OLD, BUT SHE SURE IS FAST!',
-        move  => $optimal_movement->{direction}
+        move  => $optimal_movement->{direction} // 'left'
     };
 }
 
