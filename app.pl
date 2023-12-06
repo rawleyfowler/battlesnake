@@ -2,14 +2,14 @@ use 5.036;
 
 use Dancer2;
 use DDP;
-use List::Util qw(reduce min sum);
+use List::Util qw(reduce min);
 
 use constant SNAKE_NAME => 'perlsnake';
 
 set serializer => 'JSON';
 
 sub _optimal_movement {
-    my ( $viable_movements, $food, $hazards ) = @_;
+    my ( $viable_movements, $food, $hazards, $enemy_snakes, $length ) = @_;
 
     foreach my $m (@$viable_movements) {
 
@@ -18,19 +18,16 @@ sub _optimal_movement {
 
         # Add the distance from fruit
         $m->{dt}
-            -= min( map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) }
+            += min( map { abs( $_->{x} - $m->{x} ) + abs( $_->{y} - $m->{y} ) }
                 @$food );
 
-        say 'HAZARDS: ';
-        p $hazards;
+        my @enemy_heads_and_lengths = map { +{ head => $_->{head}, length => scalar(@$_->{body}) } } @$enemy_snakes;
 
-        # Increase cost of route based on proximity to
-        # existing hazards
-        for (@$hazards) {
-            if (abs($_->{x} - $m->{x}) == 1 &&
-                abs($_->{y} - $m->{y}) == 1) {
-                ++$m->{dt};
-            }
+        for (@enemy_heads_and_lengths) {
+            $m->{dt} = -1
+                if ($_->{head}->{x} == $m->{x} &&
+                    $_->{head}->{y} == $m->{y} &&
+                    $length > $_->{length});
         }
     }
 
@@ -43,8 +40,8 @@ sub _viable_movements {
     my @movements;
     my %h = %$hazards;
 
-    my $dw = $width - 1;
-    my $dh = $height - 1;
+    my $dw = $width;
+    my $dh = $height;
 
     my $x = $head->{x};
     my $y = $head->{y};
@@ -62,7 +59,7 @@ sub _viable_movements {
             && ( $ny >= 0 && $ny < $dh );
     };
 
-    if ( ( my $dx = $x + 1 ) <= $dw ) {
+    if ( ( my $dx = $x + 1 ) < $dw ) {
         say 'DX: ', $dx, ' Y: ', $y;
         push @movements, $make_direction->( 'right', $dx, $y )
             if $safe->( $dx, $y );
@@ -74,7 +71,7 @@ sub _viable_movements {
             if $safe->( $dx, $y );
     }
 
-    if ( ( my $dy = $y + 1 ) <= $dh ) {
+    if ( ( my $dy = $y + 1 ) < $dh ) {
         say 'X: ', $x, ' DY: ', $dy;
         push @movements, $make_direction->( 'up', $x, $dy )
             if $safe->( $x, $dy );
@@ -101,15 +98,11 @@ sub _determine_move {
     my $snake = $map->{you};
 
     my $head = $snake->{head};
-    say 'HEAD';
-    p $head;
     my $tail    = pop $snake->{body}->@*;
     my $height  = $board->{height};
     my $width   = $board->{width};
     my $hazards = $board->{hazards};
     my $food    = $board->{food};
-
-    p $snake;
 
     shift $snake->{body}->@*;
     push @$hazards, $snake->{body}->@*;
@@ -132,18 +125,17 @@ sub _determine_move {
     }
 
     my %h;
-
     for (@$hazards) {
         $h{ $_->{x} . ',' . $_->{y} } = 1;
     }
 
     my $viable_movements = _viable_movements( $head, \%h, $width, $height );
     my $optimal_movement
-        = _optimal_movement( $viable_movements, $food, $hazards );
+        = _optimal_movement( $viable_movements, $food, $hazards, $game->{snakes}, scalar(@{$snake->{body}}) );
 
     return +{
         shout => 'PERL MAY BE OLD, BUT SHE SURE IS FAST!',
-        move  => $optimal_movement->{direction} // 'left'
+        move  => $optimal_movement->{direction}
     };
 }
 
@@ -168,6 +160,11 @@ post '/move' => sub {
     say 'PICKED MOVE:';
     p $move;
     return $move;
+};
+
+get '/end' => sub {
+    say 'WE ENDING';
+    return 'GG!';
 };
 
 open( my $fh, '>', '/tmp/battlesnake.pid' ) or die $!;
